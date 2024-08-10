@@ -1,0 +1,1 @@
+Lets look into my homebridges logs
