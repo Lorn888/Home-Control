@@ -3,6 +3,7 @@ import csv
 import io
 import logging
 import azure.functions as func
+from database import insert_log, create_table
 
 def remove_ansi_codes(text):
     ansi_escape = re.compile(r'\x1b\[[-0-9;]*m')
@@ -67,6 +68,9 @@ def main(myblob: func.InputStream, outputBlob: func.Out[bytes]):
                 'State': state,
                 'Brightness': brightness
             })
+
+            # Insert data into the database
+            insert_log(timestamp, device_name, state, brightness)
 
         output.seek(0)
         processed_data = output.getvalue().encode('utf-8')  # Convert string to bytes
