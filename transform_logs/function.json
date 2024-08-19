@@ -4,14 +4,14 @@
       "name": "myblob",
       "type": "blobTrigger",
       "direction": "in",
-      "path": "blobcontainer/{name}",
+      "path": "homebridge-logs/{name}",
       "connection": "AzureWebJobsStorage"
     },
     {
       "name": "outputBlob",
       "type": "blob",
       "direction": "out",
-      "path": "outputblob/{name}.csv",
+      "path": "transformed-logs/{name}.csv",
       "connection": "AzureWebJobsStorage"
     }
   ]
