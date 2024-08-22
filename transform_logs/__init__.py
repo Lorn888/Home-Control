@@ -3,23 +3,30 @@ import csv
 import io
 import logging
 import azure.functions as func
-from database import insert_log, create_table
+from database import insert_data
 
 def remove_ansi_codes(text):
+    logging.debug("Removing ANSI codes from text.")
     ansi_escape = re.compile(r'\x1b\[[-0-9;]*m')
-    return ansi_escape.sub('', text)
+    clean_text = ansi_escape.sub('', text)
+    logging.debug("ANSI codes removed.")
+    return clean_text
 
 def main(myblob: func.InputStream, outputBlob: func.Out[bytes]):
     logging.info(f"Processing blob: {myblob.name} with size: {myblob.length} bytes")
     
     try:
         # Read the blob content
-        log_content = myblob.read().decode('utf-8')
-        logging.info("Log content read successfully.")
+        try:
+            logging.debug("Attempting to read blob content.")
+            log_content = myblob.read().decode('utf-8')
+            logging.info("Log content read successfully.")
+        except Exception as e:
+            logging.error(f"Error reading blob content: {e}")
+            return  # Exit if reading the blob fails
 
         # Clean the log content
         clean_log = remove_ansi_codes(log_content)
-        logging.info("ANSI codes removed from log content.")
 
         # Define device mapping
         device_mapping = {
@@ -36,48 +43,69 @@ def main(myblob: func.InputStream, outputBlob: func.Out[bytes]):
         )
 
         # Find matches
-        matches = list(log_entry_pattern.finditer(clean_log))
-        logging.info(f"Found {len(matches)} log entries.")
+        try:
+            logging.debug("Finding matches in the log content.")
+            matches = list(log_entry_pattern.finditer(clean_log))
+            logging.info(f"Found {len(matches)} log entries.")
+        except Exception as e:
+            logging.error(f"Error finding matches in log content: {e}")
+            return
 
         # Prepare output in CSV format
-        output = io.StringIO()
-        fieldnames = ['Timestamp', 'Device Name', 'State', 'Brightness']
-        writer = csv.DictWriter(output, fieldnames=fieldnames)
-        writer.writeheader()
+        try:
+            logging.debug("Preparing CSV output.")
+            output = io.StringIO()
+            fieldnames = ['Timestamp', 'Device Name', 'State', 'Brightness']
+            writer = csv.DictWriter(output, fieldnames=fieldnames)
+            writer.writeheader()
 
-        for match in matches:
-            timestamp = match.group('Timestamp')
-            device_id = match.group('DeviceID')
-            data = match.group('Data')
+            for match in matches:
+                timestamp = match.group('Timestamp')
+                device_id = match.group('DeviceID')
+                data = match.group('Data')
 
-            device_name = device_mapping.get(device_id, device_id)  # Defaults to device_id if not found
+                device_name = device_mapping.get(device_id, device_id)  # Defaults to device_id if not found
 
-            try:
-                state = re.search(r'"state":"(.*?)"', data).group(1)
-            except AttributeError:
-                state = re.search(r'"state":(\d)', data).group(1)
+                try:
+                    state = re.search(r'"state":"(.*?)"', data).group(1)
+                except AttributeError:
+                    state = re.search(r'"state":(\d)', data).group(1)
 
-            try:
-                brightness = re.search(r'"brightness":(\d+)', data).group(1)
-            except AttributeError:
-                brightness = None
+                try:
+                    brightness = re.search(r'"brightness":(\d+)', data).group(1)
+                except AttributeError:
+                    brightness = None
 
-            writer.writerow({
-                'Timestamp': timestamp,
-                'Device Name': device_name, 
-                'State': state,
-                'Brightness': brightness
-            })
+                writer.writerow({
+                    'Timestamp': timestamp,
+                    'Device Name': device_name, 
+                    'State': state,
+                    'Brightness': brightness
+                })
 
-            # Insert data into the database
-            insert_log(timestamp, device_name, state, brightness)
-
-        output.seek(0)
-        processed_data = output.getvalue().encode('utf-8')  # Convert string to bytes
+            output.seek(0)
+            processed_data = output.getvalue().encode('utf-8')  # Convert string to bytes
+            logging.info("CSV data prepared successfully.")
+        except Exception as e:
+            logging.error(f"Error preparing CSV output: {e}")
+            return
 
         # Set the processed data to the output blob
-        outputBlob.set(processed_data)
-        logging.info("Processed data written to output blob.")
+        try:
+            logging.debug("Attempting to write processed data to output blob.")
+            outputBlob.set(processed_data)
+            logging.info("Processed data written to output blob.")
+        except Exception as e:
+            logging.error(f"Error writing to output blob: {e}")
+            return
+
+        # Insert data into the database
+        try:
+            logging.debug("Attempting to insert data into the database.")
+            insert_data(output.getvalue())  # Pass CSV data as a string to the insert_data function
+            logging.info("Data inserted into database.")
+        except Exception as e:
+            logging.error(f"Error inserting data into database: {e}")
 
     except Exception as e:
-        logging.error(f"Error occurred: {e}")
+        logging.error(f"Unexpected error occurred: {e}")
