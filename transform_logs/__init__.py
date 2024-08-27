@@ -2,8 +2,57 @@ import re
 import csv
 import io
 import logging
+import pyodbc
 import azure.functions as func
-from database import insert_data
+
+def get_db_connection():
+    try:
+        # Replace these with your actual connection details
+        server = 'myserver888.database.windows.net'
+        database = 'MyDb'
+        username = 'patryk888888'
+        password = 'Limpiki1'
+        driver = '{ODBC Driver 18 for SQL Server}'
+
+        # Use the correct connection string format for ODBC Driver 18
+        connection_string = (
+            f"Driver={driver};"
+            f"Server=tcp:{server},1433;"
+            f"Database={database};"
+            f"Uid={username};"
+            f"Pwd={password};"
+            "Encrypt=yes;"
+            "TrustServerCertificate=no;"
+            "Connection Timeout=30;"
+        )
+        connection = pyodbc.connect(connection_string)
+        return connection
+    except Exception as e:
+        logging.error(f"Error connecting to the database: {e}")
+        raise
+
+def insert_data(csv_data):
+    try:
+        connection = get_db_connection()
+        cursor = connection.cursor()
+        
+        # SQL query to insert data into your table
+        sql_query = """
+        INSERT INTO LightingData (Timestamp, DeviceName, State, Brightness)
+        VALUES (?, ?, ?, ?)
+        """
+        
+        # Use csv.DictReader to read the CSV data
+        reader = csv.DictReader(io.StringIO(csv_data))
+        for row in reader:
+            cursor.execute(sql_query, row['Timestamp'], row['Device Name'], row['State'], row['Brightness'])
+        
+        connection.commit()
+        cursor.close()
+        connection.close()
+    except Exception as e:
+        logging.error(f"Error inserting data into the database: {e}")
+        raise
 
 def remove_ansi_codes(text):
     logging.debug("Removing ANSI codes from text.")
@@ -66,15 +115,12 @@ def main(myblob: func.InputStream, outputBlob: func.Out[bytes]):
 
                 device_name = device_mapping.get(device_id, device_id)  # Defaults to device_id if not found
 
-                try:
-                    state = re.search(r'"state":"(.*?)"', data).group(1)
-                except AttributeError:
-                    state = re.search(r'"state":(\d)', data).group(1)
+                # Extract state and brightness with error handling
+                state_match = re.search(r'"state":"(.*?)"', data) or re.search(r'"state":(\d)', data)
+                state = state_match.group(1) if state_match else "Unknown"
 
-                try:
-                    brightness = re.search(r'"brightness":(\d+)', data).group(1)
-                except AttributeError:
-                    brightness = None
+                brightness_match = re.search(r'"brightness":(\d+)', data)
+                brightness = brightness_match.group(1) if brightness_match else "N/A"
 
                 writer.writerow({
                     'Timestamp': timestamp,

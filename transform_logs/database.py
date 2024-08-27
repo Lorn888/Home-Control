@@ -5,14 +5,16 @@ import logging
 
 def get_db_connection():
     try:
-        # Replace these with your actual connection details
-        server = 'myserver888.database.windows.net'
-        database = 'MyDb'
-        username = 'patryk888888'
-        password = 'Limpiki1'
-        driver = '{ODBC Driver 17 for SQL Server}'
-
-        connection_string = f"DRIVER={driver};SERVER={server};DATABASE={database};UID={username};PWD={password}"
+        connection_string = (
+            "Driver={ODBC Driver 18 for SQL Server};"  
+            "Server=tcp:myserver888.database.windows.net,1433;"  
+            "Database=MyDb;" 
+            "Uid=patryk888888;"  
+            "Pwd=Limpiki1;"  
+            "Encrypt=yes;"  
+            "TrustServerCertificate=no;" 
+            "Connection Timeout=30;" 
+        )
         connection = pyodbc.connect(connection_string)
         return connection
     except Exception as e:
@@ -41,3 +43,4 @@ def insert_data(csv_data):
     except Exception as e:
         logging.error(f"Error inserting data into the database: {e}")
         raise
+  
