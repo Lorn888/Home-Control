@@ -45,7 +45,24 @@ def insert_data(csv_data):
         # Use csv.DictReader to read the CSV data
         reader = csv.DictReader(io.StringIO(csv_data))
         for row in reader:
-            cursor.execute(sql_query, row['Timestamp'], row['Device Name'], row['State'], row['Brightness'])
+            # Handle conversion of Brightness to integer, default to None if not valid
+            state = row['State']
+            brightness = row['Brightness']
+            
+            # Apply conditions
+            if state == '0':
+                state = 'off'
+            else:
+                state = 'on'
+            
+            if state == 'on' and not brightness:
+                brightness = 254
+            elif state == 'off' and not brightness:
+                brightness = 0
+            else:
+                brightness = int(brightness) if brightness else 0
+            
+            cursor.execute(sql_query, row['Timestamp'], row['Device Name'], state, brightness)
         
         connection.commit()
         cursor.close()
