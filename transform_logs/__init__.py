@@ -23,7 +23,7 @@ def get_db_connection():
             f"Pwd={password};"
             "Encrypt=yes;"
             "TrustServerCertificate=no;"
-            "Connection Timeout=30;"
+            "Connection Timeout=120;"
         )
         connection = pyodbc.connect(connection_string)
         return connection
@@ -55,13 +55,16 @@ def insert_data(csv_data):
             else:
                 state = 'on'
             
-            if state == 'on' and not brightness:
+            if state == 'on' and not brightness or brightness == 'N/A':
                 brightness = 254
-            elif state == 'off' and not brightness:
+            elif state == 'off' and not brightness or brightness == 'N/A':
                 brightness = 0
             else:
-                brightness = int(brightness) if brightness else 0
-            
+                try:
+                    brightness = int(brightness)
+                except ValueError:
+                    brightness = 0  # or another default value
+
             cursor.execute(sql_query, row['Timestamp'], row['Device Name'], state, brightness)
         
         connection.commit()
