@@ -6,7 +6,7 @@ import pyodbc
 import azure.functions as func
 import time
 
-def get_db_connection_with_retries(max_retries=3, delay=5):
+def get_db_connection_with_retries(max_retries=4, delay=5):
     for attempt in range(max_retries):
         try:
             # Replace these with your actual connection details
