@@ -5,6 +5,7 @@ import logging
 import pyodbc
 import azure.functions as func
 import time
+from datetime import datetime
 
 def get_db_connection_with_retries(max_retries=4, delay=5):
     for attempt in range(max_retries):
@@ -70,7 +71,10 @@ def insert_data_with_retries(csv_data, max_retries=3, delay=5):
                     except ValueError:
                         brightness = 0  # or another default value
 
-                cursor.execute(sql_query, row['Timestamp'], row['Device Name'], state, brightness)
+                # Convert Timestamp to datetime object
+                timestamp = datetime.strptime(row['Timestamp'], '%d/%m/%Y, %H:%M:%S')
+
+                cursor.execute(sql_query, timestamp, row['Device Name'], state, brightness)
             
             connection.commit()
             cursor.close()
