@@ -4,75 +4,83 @@ import io
 import logging
 import pyodbc
 import azure.functions as func
+import time
 
-def get_db_connection():
-    try:
-        # Replace these with your actual connection details
-        server = 'myserver888.database.windows.net'
-        database = 'MyDb'
-        username = 'patryk888888'
-        password = 'Limpiki1'
-        driver = '{ODBC Driver 18 for SQL Server}'
+def get_db_connection_with_retries(max_retries=3, delay=5):
+    for attempt in range(max_retries):
+        try:
+            # Replace these with your actual connection details
+            server = 'myserver2888.database.windows.net'
+            database = 'MyDb'
+            username = 'patryk888888'
+            password = 'Limpiki1'
+            driver = '{ODBC Driver 18 for SQL Server}'
+    
+            # Use the correct connection string format for ODBC Driver 18
+            connection_string = (
+                f"Driver={driver};"
+                f"Server=tcp:{server},1433;"
+                f"Database={database};"
+                f"Uid={username};"
+                f"Pwd={password};"
+                "Encrypt=yes;"
+                "TrustServerCertificate=no;"
+                "Connect Timeout=120;"
+            )
+            connection = pyodbc.connect(connection_string)
+            return connection
+        except Exception as e:
+            logging.error(f"Attempt {attempt + 1} failed to connect: {e}")
+            time.sleep(delay)
+    logging.error(f"All {max_retries} attempts to connect to the database failed.")
+    raise
 
-        # Use the correct connection string format for ODBC Driver 18
-        connection_string = (
-            f"Driver={driver};"
-            f"Server=tcp:{server},1433;"
-            f"Database={database};"
-            f"Uid={username};"
-            f"Pwd={password};"
-            "Encrypt=yes;"
-            "TrustServerCertificate=no;"
-            "Connect Timeout=120;"
-        )
-        connection = pyodbc.connect(connection_string)
-        return connection
-    except Exception as e:
-        logging.error(f"Error connecting to the database: {e}")
-        raise
-
-def insert_data(csv_data):
-    try:
-        connection = get_db_connection()
-        cursor = connection.cursor()
-        
-        # SQL query to insert data into your table
-        sql_query = """
-        INSERT INTO LightingData (Timestamp, DeviceName, State, Brightness)
-        VALUES (?, ?, ?, ?)
-        """
-        
-        # Use csv.DictReader to read the CSV data
-        reader = csv.DictReader(io.StringIO(csv_data))
-        for row in reader:
-            # Handle conversion of Brightness to integer, default to None if not valid
-            state = row['State']
-            brightness = row['Brightness']
+def insert_data_with_retries(csv_data, max_retries=3, delay=5):
+    for attempt in range(max_retries):
+        try:
+            connection = get_db_connection_with_retries()
+            cursor = connection.cursor()
             
-            # Apply conditions
-            if state == '0':
-                state = 'off'
-            else:
-                state = 'on'
+            # SQL query to insert data into your table
+            sql_query = """
+            INSERT INTO LightingData (Timestamp, DeviceName, State, Brightness)
+            VALUES (?, ?, ?, ?)
+            """
             
-            if state == 'on' and not brightness or brightness == 'N/A':
-                brightness = 254
-            elif state == 'off' and not brightness or brightness == 'N/A':
-                brightness = 0
-            else:
-                try:
-                    brightness = int(brightness)
-                except ValueError:
-                    brightness = 0  # or another default value
+            # Use csv.DictReader to read the CSV data
+            reader = csv.DictReader(io.StringIO(csv_data))
+            for row in reader:
+                # Handle conversion of Brightness to integer, default to None if not valid
+                state = row['State']
+                brightness = row['Brightness']
+                
+                # Apply conditions
+                if state == '0':
+                    state = 'off'
+                else:
+                    state = 'on'
+                
+                if state == 'on' and not brightness or brightness == 'N/A':
+                    brightness = 254
+                elif state == 'off' and not brightness or brightness == 'N/A':
+                    brightness = 0
+                else:
+                    try:
+                        brightness = int(brightness)
+                    except ValueError:
+                        brightness = 0  # or another default value
 
-            cursor.execute(sql_query, row['Timestamp'], row['Device Name'], state, brightness)
-        
-        connection.commit()
-        cursor.close()
-        connection.close()
-    except Exception as e:
-        logging.error(f"Error inserting data into the database: {e}")
-        raise
+                cursor.execute(sql_query, row['Timestamp'], row['Device Name'], state, brightness)
+            
+            connection.commit()
+            cursor.close()
+            connection.close()
+            return  # If successful, exit the function
+        except Exception as e:
+            logging.error(f"Attempt {attempt + 1} failed to insert data: {e}")
+            time.sleep(delay)
+    logging.error(f"All {max_retries} attempts to insert data failed.")
+    raise
 
 def remove_ansi_codes(text):
     logging.debug("Removing ANSI codes from text.")
@@ -168,7 +176,7 @@ def main(myblob: func.InputStream, outputBlob: func.Out[bytes]):
         # Insert data into the database
         try:
             logging.debug("Attempting to insert data into the database.")
-            insert_data(output.getvalue())  # Pass CSV data as a string to the insert_data function
+            insert_data_with_retries(output.getvalue())  # Pass CSV data as a string to the insert_data_with_retries function
             logging.info("Data inserted into database.")
         except Exception as e:
             logging.error(f"Error inserting data into database: {e}")
