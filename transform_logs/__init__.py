@@ -1,3 +1,4 @@
+import os
 import re
 import csv
 import io
@@ -10,11 +11,11 @@ from datetime import datetime
 def get_db_connection_with_retries(max_retries=4, delay=5):
     for attempt in range(max_retries):
         try:
-            # Replace these with your actual connection details
-            server = 'myserver2888.database.windows.net'
-            database = 'MyDb'
-            username = 'patryk888888'
-            password = 'Limpiki1'
+            # Fetch connection details from environment variables
+            server = os.getenv('DB_SERVER')
+            database = os.getenv('DB_NAME')
+            username = os.getenv('DB_USERNAME')
+            password = os.getenv('DB_PASSWORD')
             driver = '{ODBC Driver 18 for SQL Server}'
     
             # Use the correct connection string format for ODBC Driver 18
