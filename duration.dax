@@ -1,0 +1,17 @@
+Duration = 
+VAR CurrentRow = MAX(LightingData[Timestamp])
+VAR PreviousRow = 
+    CALCULATE(
+        MAX(LightingData[Timestamp]),
+        FILTER(
+            ALL(LightingData),
+            LightingData[Timestamp] < CurrentRow &&
+            LightingData[DeviceName] = MAX(LightingData[DeviceName])
+        )
+    )
+RETURN
+    IF(
+        ISBLANK(PreviousRow),
+        BLANK(),
+        DATEDIFF(PreviousRow, CurrentRow, SECOND)
+    )
